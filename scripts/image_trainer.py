@@ -448,6 +448,11 @@ async def main():
     run_training(args.model_type, config_path)
 
     print("\n" + "="*50, flush=True)
+
+    if args.model_type not in ["sdxl", "qwen-image", "z-image"]:
+        print(f"Skipping evaluation for model type: {args.model_type}", flush=True)
+        return
+
     print("Starting POST-TRAINING EVALUATION...", flush=True)
     # Determine output directory (mirroring create_config logic)
     output_dir = train_paths.get_checkpoints_output_path(args.task_id, args.expected_repo_name or "output")
