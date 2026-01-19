@@ -10,7 +10,7 @@ RUN pip install aiohttp pydantic requests toml \
     fastapi uvicorn httpx loguru python-dotenv \
     scipy numpy datasets tenacity minio huggingface_hub \
     transformers pandas==2.2.3 tiktoken==0.8.0 sentencepiece==0.2.0 peft==0.11.1 Pillow==11.1.0 PyYAML \
-    requests huggingface_hub
+    requests huggingface_hub \
     wandb \
     optuna \
     scikit-learn \
