@@ -257,17 +257,20 @@ def main():
                 # Test 1: Text-guided inference
                 kwargs_text = {
                     "prompt": prompt,
-                    "image": original_image,
-                    "strength": model_consts["denoise"],
                     "num_inference_steps": model_consts["steps"],
                     "guidance_scale": model_consts["cfg"],
                     "generator": generator
                 }
                 
+                # Add image usage only for models that support it (img2img)
+                if args.model_type not in ["qwen-image", "z-image"]:
+                    kwargs_text["image"] = original_image
+                    kwargs_text["strength"] = model_consts["denoise"]
+                
                 try:
                     generated_image_text = pipe(**kwargs_text).images[0]
                 except RuntimeError as e:
-                    if "expected scalar type" in str(e) and "but found" in str(e):
+                    if "expected scalar type" in str(e) and "but found" in str(e) and "image" in kwargs_text:
                         print(f"  Dtype mismatch detected, converting image to {dtype}...")
                         import torchvision.transforms as T
                         to_tensor = T.ToTensor()
@@ -292,17 +295,19 @@ def main():
                 generator_no_text = torch.Generator(device=device).manual_seed(seed)
                 kwargs_no_text = {
                     "prompt": "",
-                    "image": original_image,
-                    "strength": model_consts["denoise"],
                     "num_inference_steps": model_consts["steps"],
                     "guidance_scale": model_consts["cfg"],
                     "generator": generator_no_text
                 }
                 
+                if args.model_type not in ["qwen-image", "z-image"]:
+                    kwargs_no_text["image"] = original_image
+                    kwargs_no_text["strength"] = model_consts["denoise"]
+                
                 try:
                     generated_image_no_text = pipe(**kwargs_no_text).images[0]
                 except RuntimeError as e:
-                    if "expected scalar type" in str(e) and "but found" in str(e):
+                    if "expected scalar type" in str(e) and "but found" in str(e) and "image" in kwargs_no_text:
                         if 'original_image_converted' not in locals():
                             import torchvision.transforms as T
                             to_tensor = T.ToTensor()
