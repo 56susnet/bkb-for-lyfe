@@ -33,6 +33,7 @@ IMAGE_CONTAINER_CONFIG_TEMPLATE_PATH = "/workspace/core/config"
 IMAGE_CONTAINER_CONFIG_SAVE_PATH = "/dataset/configs"
 IMAGE_CONTAINER_IMAGES_PATH = "/dataset/images"
 TEXT_CONTAINER_SAVE_PATH = "/workspace/axolotl/outputs/"
+EVAL_IMAGE = "/eval_images"
 
 #Directories
 

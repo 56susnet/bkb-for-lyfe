@@ -14,6 +14,9 @@ import re
 import time
 import yaml
 import toml
+import shutil
+import random
+import glob
 
 
 # Add project root to python path to import modules
@@ -83,7 +86,49 @@ def load_lrs_config(model_type: str, is_style: bool) -> dict:
         return None
 
 
-def create_config(task_id, model_path, model_name, model_type, expected_repo_name, trigger_word: str | None = None):
+
+def split_dataset(train_dir, eval_dir):
+    if os.path.exists(eval_dir):
+        shutil.rmtree(eval_dir)
+    os.makedirs(eval_dir, exist_ok=True)
+    
+    extensions = ('.png', '.jpg', '.jpeg')
+    all_files = [f for f in os.listdir(train_dir) if f.lower().endswith(extensions)]
+    all_files.sort()
+    
+    total_files = len(all_files)
+    if total_files == 0:
+        print("Warning: No images found to split.", flush=True)
+        return 0, 0
+
+    if total_files > 20:
+        sample_size = 2
+    else:
+        sample_size = 1
+    
+    random.seed(42) 
+    eval_files = random.sample(all_files, sample_size)
+    
+    print(f"Splitting dataset: {total_files} total images. Moving {len(eval_files)} to evaluation set ({eval_dir}).", flush=True)
+    
+    for filename in eval_files:
+        src_img = os.path.join(train_dir, filename)
+        dst_img = os.path.join(eval_dir, filename)
+        shutil.move(src_img, dst_img)
+        
+        base_name = os.path.splitext(filename)[0]
+        txt_name = f"{base_name}.txt"
+        src_txt = os.path.join(train_dir, txt_name)
+        if os.path.exists(src_txt):
+            dst_txt = os.path.join(eval_dir, txt_name)
+            shutil.move(src_txt, dst_txt)
+            
+    num_train = len(all_files) - len(eval_files)
+    num_eval = len(eval_files)
+    return num_train, num_eval
+
+def create_config(task_id, model_path, model_name, model_type, expected_repo_name, trigger_word: str | None = None, num_images: int = 0):
+
     """Get the training data directory"""
     train_data_dir = train_paths.get_image_training_images_dir(task_id)
 
@@ -365,6 +410,31 @@ async def main():
         output_dir=train_cst.IMAGE_CONTAINER_IMAGES_PATH
     )
 
+    base_images_dir = train_cst.IMAGE_CONTAINER_IMAGES_PATH
+    train_data_dir = base_images_dir
+    
+    image_dir = None
+    extensions = ('.png', '.jpg', '.jpeg')
+    
+    if os.path.exists(base_images_dir):
+        for root, dirs, files in os.walk(base_images_dir):
+            if any(f.lower().endswith(extensions) for f in files):
+                image_dir = root
+                print(f"Detected images in: {image_dir}", flush=True)
+                break
+    
+    if image_dir:
+        train_data_dir = image_dir
+        print(f"Setting training config root to: {train_data_dir}", flush=True)
+    else:
+        print("Warning: Could not find any images in dataset path!", flush=True)
+        train_data_dir = base_images_dir
+        image_dir = base_images_dir
+
+    num_train_images, num_eval_images = split_dataset(image_dir, train_cst.EVAL_IMAGE)
+    num_images = num_train_images
+    print(f"Found {num_images} training images (and {num_eval_images} eval images) in {train_data_dir}", flush=True)
+
     config_path = create_config(
         args.task_id,
         model_path,
@@ -372,9 +442,122 @@ async def main():
         args.model_type,
         args.expected_repo_name,
         args.trigger_word,
+        num_images=num_images
     )
 
     run_training(args.model_type, config_path)
+
+    print("\n" + "="*50, flush=True)
+    print("Starting POST-TRAINING EVALUATION...", flush=True)
+    # Determine output directory (mirroring create_config logic)
+    output_dir = train_paths.get_checkpoints_output_path(args.task_id, args.expected_repo_name or "output")
+    
+    if not os.path.isdir(output_dir):
+         print(f"Warning: Output directory {output_dir} not found. Skipping evaluation.", flush=True)
+         return
+
+    checkpoints = []
+
+    for root, dirs, files in os.walk(output_dir):
+        for file in files:
+            if file.endswith(".safetensors") and "optimizer" not in file:
+                 full_path = os.path.join(root, file)
+                 checkpoints.append(full_path)
+    
+    if not checkpoints:
+        print("No checkpoints found for evaluation.", flush=True)
+    else:
+        print(f"Found {len(checkpoints)} checkpoints to evaluate.", flush=True)
+        
+        best_loss = float('inf')
+        best_checkpoint = None
+        
+        eval_script = os.path.join(script_dir, "eval_handler.py")
+        
+        for ckpt in checkpoints:
+            print(f"Evaluating checkpoint: {ckpt}", flush=True)
+            
+            eval_output_file = os.path.join(os.path.dirname(ckpt), f"eval_results_{os.path.basename(ckpt)}.json")
+            
+            eval_cmd = [
+                "python3",
+                eval_script,
+                "--dataset", train_cst.EVAL_IMAGE,
+                "--base-model", model_path, 
+                "--model-type", args.model_type,
+                "--checkpoint-path", ckpt,
+                "--output-file", eval_output_file
+            ]
+            
+            try:
+                eval_process = subprocess.Popen(
+                    eval_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+                
+                for line in eval_process.stdout:
+                    print(f"  {line}", end="", flush=True)
+                
+                return_code = eval_process.wait()
+                
+                if return_code != 0:
+                    print(f"  Evaluation failed with exit code {return_code}", flush=True)
+                    continue
+                
+                if os.path.exists(eval_output_file):
+                    with open(eval_output_file, 'r') as f:
+                        res = json.load(f)
+                        avg_loss = res.get("weighted_loss", float('inf'))
+                        print(f"  Weighted Loss: {avg_loss:.6f}", flush=True)
+                        
+                        if avg_loss < best_loss:
+                            best_loss = avg_loss
+                            best_checkpoint = ckpt
+                else:
+                     print("  Warning: Evaluation produced no output file.", flush=True)
+
+            except Exception as e:
+                print(f"  An error occurred evaluating {ckpt}: {e}", flush=True)
+
+        print("-" * 30, flush=True)
+        if best_checkpoint:
+            print(f"BEST MODEL FOUND: {best_checkpoint} (Loss: {best_loss})", flush=True)
+            
+            targets = [
+                os.path.join(output_dir, "last.safetensors"),
+                os.path.join(output_dir, "last", "last.safetensors")
+            ]
+            
+            promoted = False
+            for target in targets:
+                target_dir = os.path.dirname(target)
+                if os.path.isdir(target_dir):
+                    try:
+                        shutil.copy2(best_checkpoint, target)
+                        print(f"Promoted best model to: {target}", flush=True)
+                        promoted = True
+                    except Exception as e:
+                         print(f"Failed to copy to {target}: {e}", flush=True)
+            
+            if not promoted:
+                 target = os.path.join(output_dir, "last.safetensors")
+                 try:
+                    shutil.copy2(best_checkpoint, target)
+                    print(f"Promoted best model to: {target}", flush=True)
+                 except Exception as e:
+                    print(f"Failed to copy to {target}: {e}", flush=True)
+
+            best_marker_path = os.path.join(output_dir, "best_model_info.json")
+            with open(best_marker_path, 'w') as f:
+                 json.dump({"best_checkpoint": best_checkpoint, "loss": best_loss}, f)
+            
+        else:
+            print("Could not determine best model.", flush=True)
+    
+    print("="*50 + "\n", flush=True)
 
 
 if __name__ == "__main__":
