@@ -10,7 +10,14 @@ RUN pip install --no-cache-dir \
     loguru \
     scipy \
     numpy \
+    wandb \
+    optuna \
+    scikit-learn \
     pandas==2.2.3 \
+    diffusers \
+    transformers \
+    torch \
+    torchvision \
     tiktoken==0.8.0 \
     Pillow==11.1.0 \
     "fiber @ git+https://github.com/rayonlabs/fiber.git@2.4.0"
