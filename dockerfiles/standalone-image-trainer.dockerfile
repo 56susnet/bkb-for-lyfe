@@ -17,7 +17,8 @@ RUN pip install aiohttp pydantic requests toml \
     diffusers \
     transformers \
     torch \
-    torchvision 
+    torchvision \
+    optuna
 
 RUN mkdir -p /dataset/configs \
     /dataset/outputs \
