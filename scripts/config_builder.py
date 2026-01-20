@@ -29,20 +29,54 @@ def merge_model_config(default_config: dict, model_config: dict) -> dict:
 
     return merged if merged else None
 
-def get_config_for_model(lrs_config: dict, model_name: str) -> dict:
-    """Get configuration overrides based on model name."""
+def get_config_for_model(lrs_config: dict, model_name: str, num_images: int = 0, tier: str = "first") -> dict:
+    """
+    Get configuration overrides based on model name, number of images, and tier.
+    
+    Args:
+        lrs_config: The loaded LRS configuration
+        model_name: Hash of the model name
+        num_images: Number of training images
+        tier: Training tier ("first", "medium", "high")
+    
+    Returns:
+        Model-specific configuration dict or None
+    """
     if not isinstance(lrs_config, dict):
         return None
 
     data = lrs_config.get("data")
-    default_config = lrs_config.get("default", {})
-
-    if isinstance(data, dict) and model_name in data:
-        return merge_model_config(default_config, data.get(model_name))
-
-    if default_config:
-        return default_config
-
+    if not isinstance(data, dict):
+        return None
+    
+    tier_data = data.get(tier)
+    if not isinstance(tier_data, dict):
+        tier_data = data.get("first")
+        if not isinstance(tier_data, dict):
+            return None
+    
+    if num_images >= 31:
+        range_key = "31>"
+    elif num_images >= 16:
+        range_key = "16-30"
+    else:
+        range_key = "1-15"
+    
+    models_array = tier_data.get(range_key)
+    if not isinstance(models_array, list):
+        for key in ["1-15", "16-30", "31>"]:
+            models_array = tier_data.get(key)
+            if isinstance(models_array, list):
+                break
+        else:
+            return None
+    
+    for model_obj in models_array:
+        if isinstance(model_obj, dict) and model_name in model_obj:
+            model_config = model_obj[model_name]
+            if isinstance(model_config, dict) and model_config:
+                return model_config
+    
     return None
 
 def load_lrs_config(model_type: str, is_style: bool) -> dict:
@@ -152,7 +186,7 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
         lrs_config = load_lrs_config(model_type, is_style)
         if lrs_config:
             model_hash = hash_model(model_name)
-            lrs_settings = get_config_for_model(lrs_config, model_hash)
+            lrs_settings = get_config_for_model(lrs_config, model_hash, num_images=num_images)
 
             if lrs_settings:
                 for optional_key in [

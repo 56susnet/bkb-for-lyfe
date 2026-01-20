@@ -34,7 +34,7 @@ import scripts.optuna_handler_sdxl as optuna_handler_sdxl
 import scripts.optuna_handler as optuna_handler_generic
 from datetime import datetime
 
-def check_predefined_lr(model_name, model_type, train_data_dir):
+def check_predefined_lr(model_name, model_type, train_data_dir, num_images):
     """
     Check if model has predefined learning rates in config files.
     Returns dict with lr values if found, None otherwise.
@@ -50,7 +50,7 @@ def check_predefined_lr(model_name, model_type, train_data_dir):
     
     model_hash = hash_model(model_name)
     
-    model_config = get_config_for_model(lrs_config, model_hash)
+    model_config = get_config_for_model(lrs_config, model_hash, num_images=num_images)
     
     if not model_config:
         return None
@@ -302,7 +302,7 @@ async def main():
     print(f"Found {num_images} training images (and {num_eval_images} eval images) in {train_data_dir}", flush=True)
 
     best_params = None
-    predefined_lr = check_predefined_lr(args.model, args.model_type, train_data_dir)
+    predefined_lr = check_predefined_lr(args.model, args.model_type, train_data_dir, num_images)
     
     if predefined_lr:
         print("=" * 50, flush=True)
