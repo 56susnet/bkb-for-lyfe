@@ -148,7 +148,7 @@ async def main():
     parser.add_argument("--trigger-word", help="Trigger word for the training")
     parser.add_argument("--hours-to-complete", type=float, required=True, help="Number of hours to complete the task")
     parser.add_argument("--optimize", action="store_true", help="Run hyperparameter optimization")
-    parser.add_argument("--n-trials", type=int, default=10, help="Number of optimization trials")
+    parser.add_argument("--n-trials", type=int, default=5, help="Number of optimization trials")
     args = parser.parse_args()
 
     os.makedirs(train_cst.IMAGE_CONTAINER_CONFIG_SAVE_PATH, exist_ok=True)
