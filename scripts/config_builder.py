@@ -70,7 +70,7 @@ def hash_model(model: str) -> str:
     hashed = hashlib.sha256(model_bytes).hexdigest()
     return hashed 
 
-def create_config(task_id, model_path, model_name, model_type, expected_repo_name, trigger_word: str | None = None, num_images: int = 0, trial_number: int | None = None, train_data_dir: str | None = None):
+def create_config(task_id, model_path, model_name, model_type, expected_repo_name, trigger_word: str | None = None, num_images: int = 0, trial_number: int | None = None, train_data_dir: str | None = None, **kwargs):
     # If train_data_dir is not provided, try to find it
     if train_data_dir is None:
         train_data_dir = train_paths.get_image_training_images_dir(task_id)
@@ -83,7 +83,43 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
     if is_ai_toolkit:
         with open(config_template_path, "r") as file:
             config = yaml.safe_load(file)
+        
+        # Determine repeats - default to FLUX repeats (1) for qwen/z-image as they are likely not SDXL
+        # If we need SDXL logic effectively, we might need to check model_type against SDXL, but here we cover Z_IMAGE/QWEN_IMAGE
+        repeats = 1
+
+        process_idx = 0
         if 'config' in config and 'process' in config['config']:
+            proc_conf = config['config']['process'][process_idx]
+            
+            # Extract training parameters with fallbacks
+            epochs = kwargs.get('epochs', proc_conf.get('train', {}).get('epochs', 5))
+            save_epoch = kwargs.get('save_epoch', proc_conf.get('save', {}).get('save_epoch', 1))
+            batch_size = kwargs.get('batch_size', proc_conf.get('train', {}).get('batch_size', 1))
+            # Handle gradient_accumulation_steps key variation if necessary, but assuming standarized config
+            grad_acc = kwargs.get('grad_acc', proc_conf.get('train', {}).get('gradient_accumulation_steps', 1))
+
+            if num_images > 0:
+                total_images_per_epoch = num_images * repeats
+                effective_batch_size = batch_size * grad_acc
+                steps_per_epoch = total_images_per_epoch / effective_batch_size
+                
+                calculated_steps = int(steps_per_epoch * epochs)
+                calculated_save_every = int(steps_per_epoch * save_epoch)
+                
+                print(f"Config Builder: Calculated steps={calculated_steps}, save_every={calculated_save_every} "
+                      f"(Img={num_images}, Rpt={repeats}, Ep={epochs}, Batch={batch_size}, GradAcc={grad_acc})", flush=True)
+                
+                if 'train' in proc_conf:
+                    proc_conf['train']['steps'] = calculated_steps
+                    proc_conf['train'].pop('epochs', None)
+                    
+                if 'save' in proc_conf:
+                    proc_conf['save']['save_every'] = calculated_save_every
+                    proc_conf['save'].pop('save_epoch', None)
+            else:
+                print(f"Config Builder: Warning - num_images is 0. Using defaults.", flush=True)
+
             for process in config['config']['process']:
                 if 'model' in process:
                     process['model']['name_or_path'] = model_path

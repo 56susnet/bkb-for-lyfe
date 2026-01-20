@@ -55,7 +55,7 @@ def objective(trial, task_id, model_path, model_name, model_type, expected_repo_
     
     if 'train' in process:
         process['train']['lr'] = lr
-        process['train']['steps'] = 10 
+        process['train']['steps'] = 20 
         process['train']['lr_warmup_steps'] = lr_warmup_steps
         process['train']['batch_size'] = batch_size
         process['train']['gradient_accumulation_steps'] = gradient_accumulation_steps
