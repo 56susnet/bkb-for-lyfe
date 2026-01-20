@@ -32,6 +32,7 @@ from core.models.utility_models import ImageModelType
 from scripts.config_builder import create_config, get_model_path
 import scripts.optuna_handler_sdxl as optuna_handler_sdxl
 import scripts.optuna_handler as optuna_handler_generic
+from datetime import datetime
 
 def split_dataset(train_dir, eval_dir):
     if os.path.exists(eval_dir):
@@ -72,6 +73,78 @@ def split_dataset(train_dir, eval_dir):
     num_train = len(all_files) - len(eval_files)
     num_eval = len(eval_files)
     return num_train, num_eval
+
+def save_best_params_to_file(best_params, output_dir, model_type):
+    """Save best hyperparameters to JSON file in output directory"""
+    if not best_params:
+        return None
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    params_file = os.path.join(output_dir, "best_hyperparameters.json")
+    
+    # Add metadata to the params
+    params_with_metadata = {
+        "model_type": model_type,
+        "optimization_timestamp": datetime.now().isoformat(),
+        "best_parameters": best_params
+    }
+    
+    with open(params_file, 'w') as f:
+        json.dump(params_with_metadata, f, indent=2)
+    
+    print(f"Best hyperparameters saved to: {params_file}", flush=True)
+    return params_file
+
+def create_model_card(output_dir, args, best_params=None, num_images=0, best_loss=None, best_checkpoint=None):
+    """Create a README.md model card for HuggingFace"""
+    readme_path = os.path.join(output_dir, "README.md")
+    
+    content = f"""# {args.expected_repo_name or 'Image Model'}
+
+Model trained using image-yaya training pipeline.
+
+## Training Information
+
+- **Model Type**: `{args.model_type}`
+- **Base Model**: `{args.model}`
+"""
+
+    if best_params:
+        content += f"""\n## Hyperparameter Optimization
+
+This model was trained using Optuna hyperparameter optimization with {args.n_trials} trials.
+
+### Best Hyperparameters
+
+```json
+{json.dumps(best_params, indent=2)}
+```
+"""
+
+    if best_loss is not None and best_checkpoint:
+        content += f"""\n## Evaluation Results
+
+- **Best Checkpoint**: `{os.path.basename(best_checkpoint)}`
+- **Best Weighted Loss**: `{best_loss:.6f}`
+
+The model was evaluated on a held-out validation set, and the checkpoint with the lowest weighted loss was selected.
+"""
+
+    content += """\n## Usage
+
+Load this model using the appropriate pipeline for your model type.
+
+## License
+
+Please refer to the base model's license.
+"""
+
+    with open(readme_path, 'w') as f:
+        f.write(content)
+    
+    print(f"Model card (README.md) created at: {readme_path}", flush=True)
+    return readme_path
 
 def run_training(model_type, config_path):
     print(f"Starting training with config: {config_path}", flush=True)
@@ -221,6 +294,13 @@ async def main():
         print(f"Optimization complete. Best params: {best_params}", flush=True)
     else:
         print(f"Optimization not supported for {args.model_type}. Skipping...", flush=True)
+    
+    # Determine output directory early for saving best params
+    output_dir = train_paths.get_checkpoints_output_path(args.task_id, args.expected_repo_name or "output")
+    
+    # Save best hyperparameters to JSON file if optimization was performed
+    if best_params:
+        save_best_params_to_file(best_params, output_dir, args.model_type)
 
     config_path = create_config(
         args.task_id,
@@ -258,8 +338,7 @@ async def main():
         return
 
     print("Starting POST-TRAINING EVALUATION...", flush=True)
-    # Determine output directory (mirroring create_config logic)
-    output_dir = train_paths.get_checkpoints_output_path(args.task_id, args.expected_repo_name or "output")
+    # Output directory was already determined earlier
     
     if not os.path.isdir(output_dir):
          print(f"Warning: Output directory {output_dir} not found. Skipping evaluation.", flush=True)
@@ -363,8 +442,24 @@ async def main():
             with open(best_marker_path, 'w') as f:
                  json.dump({"best_checkpoint": best_checkpoint, "loss": best_loss}, f)
             
+            # Create comprehensive model card with all information
+            create_model_card(
+                output_dir,
+                args,
+                best_params=best_params,
+                num_images=num_images,
+                best_loss=best_loss,
+                best_checkpoint=best_checkpoint
+            )
         else:
             print("Could not determine best model.", flush=True)
+            # Create model card even without evaluation results
+            create_model_card(
+                output_dir,
+                args,
+                best_params=best_params,
+                num_images=num_images
+            )
     
     print("="*50 + "\n", flush=True)
 
