@@ -357,17 +357,34 @@ async def main():
     )
     
     if best_params:
-        if args.model_type == "sdxl" and "lr" in best_params:
-            lr = best_params["lr"]
-            unet_lr = lr
-            text_encoder_lr = lr * 0.1
-            print(f"Applying best LRs: unet_lr={unet_lr}, text_encoder_lr={text_encoder_lr}", flush=True)
-            
-            with open(config_path, 'r') as f:
-                final_config = toml.load(f)
-            
-            final_config["unet_lr"] = unet_lr
-            final_config["text_encoder_lr"] = text_encoder_lr
+        with open(config_path, 'r') as f:
+            final_config = toml.load(f)
+
+        if args.model_type == "sdxl":
+            if "d_coef" in best_params:
+                print(f"Applying best Prodigy params: d_coef={best_params['d_coef']}, weight_decay={best_params['weight_decay']}", flush=True)
+                
+                final_config["optimizer_type"] = "prodigy"
+                final_config["unet_lr"] = 1.0
+                final_config["text_encoder_lr"] = 1.0
+                
+                final_config["optimizer_args"] = [
+                    f"d_coef={best_params['d_coef']}",
+                    f"weight_decay={best_params['weight_decay']}",
+                    "decouple=True",
+                    "use_bias_correction=True",
+                    "safeguard_warmup=True",
+                    "betas=(0.9, 0.999)"
+                ]
+            elif "lr" in best_params:
+                lr = best_params["lr"]
+                unet_lr = lr
+                text_encoder_lr = lr * 0.1
+
+                print(f"Applying best LRs: unet_lr={unet_lr}, text_encoder_lr={text_encoder_lr}", flush=True)
+                
+                final_config["unet_lr"] = unet_lr
+                final_config["text_encoder_lr"] = text_encoder_lr
             
             with open(config_path, 'w') as f:
                 toml.dump(final_config, f)

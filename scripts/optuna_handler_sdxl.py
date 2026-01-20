@@ -17,15 +17,25 @@ from scripts.config_builder import create_config
 
 def objective(trial, task_id, model_path, model_name, model_type, expected_repo_name, trigger_word, train_data_dir=None):
     # Only optimizing LR for SDXL as requested
-    lr = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
+    # lr = trial.suggest_float("lr", 1e-6, 1e-3, log=True)
     
     # Simple logic: scale text_encoder_lr based on unet_lr ratio (1/10) or just use same?
     # Usually text_encoder_lr is smaller. Let's assume the user wants to search the main LR.
     # We will use lr for unet_lr and lr/10 for text_encoder_lr which is a common heuristic.
-    unet_lr = lr
-    text_encoder_lr = lr * 0.1
+    unet_lr = 1.0
+    text_encoder_lr = 1.0
+    d_coef = trial.suggest_float("d_coef", 0.5, 2.0)
+    weight_decay = trial.suggest_float("weight_decay", 1e-4, 0.1, log=True)
+    prodigy_args = [
+        f"d_coef={d_coef}",
+        f"weight_decay={weight_decay}",
+        "decouple=True",
+        "use_bias_correction=True",
+        "safeguard_warmup=True",
+        "betas=(0.9, 0.999)"
+    ]
 
-    print(f"Trial {trial.number}: Searching with unet_lr={unet_lr}, text_encoder_lr={text_encoder_lr}", flush=True)
+    # print(f"Trial {trial.number}: Searching with unet_lr={unet_lr}, text_encoder_lr={text_encoder_lr}", flush=True)
 
     repo_name = expected_repo_name or "output"
     trial_repo_name = f"{repo_name}_trial_{trial.number}"
@@ -48,8 +58,10 @@ def objective(trial, task_id, model_path, model_name, model_type, expected_repo_
     with open(base_config_path, 'r') as f:
         config_data = toml.load(f)
     
+    config_data['optimizer_type'] = "prodigy"
     config_data['unet_lr'] = unet_lr
     config_data['text_encoder_lr'] = text_encoder_lr
+    config_data['optimizer_args'] = prodigy_args
     config_data["max_train_epochs"] = 10
     config_data["save_every_n_epochs"] = 1
 

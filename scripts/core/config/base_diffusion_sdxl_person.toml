@@ -50,10 +50,10 @@ train_batch_size = 4
 gradient_accumulation_steps = 1
 
 ###### optimizer ######
-optimizer_type = "adamw8bit"
-optimizer_args = [ "betas=(0.9, 0.999)", "weight_decay=3e-04", "eps=1e-08",]
-unet_lr = 0.0008240000000000001
-text_encoder_lr = 8.240000000000001e-05
+optimizer_type = "prodigy"
+optimizer_args = ["decouple=True", "d_coef=1", "weight_decay=0.01", "use_bias_correction=True", "safeguard_warmup=True", "betas=(0.9, 0.999)"]
+unet_lr = 1
+text_encoder_lr = 1
 
 ###### lr scheduler ######
 lr_scheduler = "cosine"
@@ -61,11 +61,14 @@ lr_warmup_steps = 1
 
 ###### noise offset ######
 # noise_offset_type = "Original"
-# noise_offset = 0.0411
+# noise_offset = 0.0357
+# noise_offset_type = "Multires"
+# multires_noise_iterations = 6
+# multires_noise_discount = 0.3
 
 ###### misc ######
-network_alpha = 32
-network_dim = 32
+network_alpha = -1
+network_dim = -1
 network_module = "networks.lora"
 network_args = []
 network_dropout = 0
