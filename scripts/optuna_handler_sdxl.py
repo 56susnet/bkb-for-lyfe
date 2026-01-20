@@ -50,6 +50,9 @@ def objective(trial, task_id, model_path, model_name, model_type, expected_repo_
     
     config_data['unet_lr'] = unet_lr
     config_data['text_encoder_lr'] = text_encoder_lr
+    config_data["max_train_epochs"] = 5
+    config_data["save_every_n_epochs"] = 1
+
     
     # Ensure epochs/steps are small for optimization if needed? 
     # The user didn't specify to reduce epochs, but typically HPO trials are shorter.
