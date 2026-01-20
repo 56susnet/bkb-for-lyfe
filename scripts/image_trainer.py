@@ -34,6 +34,42 @@ import scripts.optuna_handler_sdxl as optuna_handler_sdxl
 import scripts.optuna_handler as optuna_handler_generic
 from datetime import datetime
 
+def check_predefined_lr(model_name, model_type, train_data_dir):
+    """
+    Check if model has predefined learning rates in config files.
+    Returns dict with lr values if found, None otherwise.
+    """
+    from scripts.config_builder import load_lrs_config, hash_model, get_config_for_model
+    import trainer.utils.training_paths as train_paths
+
+    _, is_style = train_paths.get_image_training_config_template_path(model_type, train_data_dir)
+    
+    lrs_config = load_lrs_config(model_type, is_style)
+    if not lrs_config:
+        return None
+    
+    model_hash = hash_model(model_name)
+    
+    model_config = get_config_for_model(lrs_config, model_hash)
+    
+    if not model_config:
+        return None
+    
+    has_unet_lr = "unet_lr" in model_config and model_config["unet_lr"] is not None
+    has_text_encoder_lr = "text_encoder_lr" in model_config and model_config["text_encoder_lr"] is not None
+    
+    if has_unet_lr and has_text_encoder_lr:
+        print(f"Found predefined LRs for model hash {model_hash}:", flush=True)
+        print(f"  unet_lr: {model_config['unet_lr']}", flush=True)
+        print(f"  text_encoder_lr: {model_config['text_encoder_lr']}", flush=True)
+        return {
+            "lr": model_config["unet_lr"],
+            "unet_lr": model_config["unet_lr"],
+            "text_encoder_lr": model_config["text_encoder_lr"]
+        }
+    
+    return None
+
 def split_dataset(train_dir, eval_dir):
     if os.path.exists(eval_dir):
         shutil.rmtree(eval_dir)
@@ -266,8 +302,15 @@ async def main():
     print(f"Found {num_images} training images (and {num_eval_images} eval images) in {train_data_dir}", flush=True)
 
     best_params = None
-    if args.model_type == "sdxl":
-        print(f"Starting Optuna hyperparameter optimization ({args.n_trials} trials)...", flush=True)
+    predefined_lr = check_predefined_lr(args.model, args.model_type, train_data_dir)
+    
+    if predefined_lr:
+        print("=" * 50, flush=True)
+        print("USING PREDEFINED LEARNING RATES - SKIPPING OPTUNA OPTIMIZATION", flush=True)
+        print("=" * 50, flush=True)
+        best_params = predefined_lr
+    elif args.model_type == "sdxl":
+        print(f"No predefined LRs found. Starting Optuna hyperparameter optimization ({args.n_trials} trials)...", flush=True)
         best_params = optuna_handler_sdxl.optimize_hyperparameters(
             args.task_id,
             model_path,
@@ -280,7 +323,7 @@ async def main():
         )
         print(f"Optimization complete. Best params: {best_params}", flush=True)
     elif args.model_type in ["qwen-image", "z-image"]:
-        print(f"Starting Optuna hyperparameter optimization ({args.n_trials} trials) for {args.model_type}...", flush=True)
+        print(f"No predefined LRs found. Starting Optuna hyperparameter optimization ({args.n_trials} trials) for {args.model_type}...", flush=True)
         best_params = optuna_handler_generic.optimize_hyperparameters(
             args.task_id,
             model_path,
