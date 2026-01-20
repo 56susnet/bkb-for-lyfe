@@ -240,7 +240,7 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
         }
 
         config["pretrained_model_name_or_path"] = model_path
-        config["train_data_dir"] = train_data_dir
+        config["train_data_dir"] = os.path.dirname(train_data_dir)
         
         repo_name = expected_repo_name or "output"
         if trial_number is not None:
