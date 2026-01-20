@@ -193,35 +193,34 @@ async def main():
     print(f"Found {num_images} training images (and {num_eval_images} eval images) in {train_data_dir}", flush=True)
 
     best_params = None
-    if args.optimize:
-        if args.model_type == "sdxl":
-            print(f"Starting Optuna hyperparameter optimization ({args.n_trials} trials)...", flush=True)
-            best_params = optuna_handler_sdxl.optimize_hyperparameters(
-                args.task_id,
-                model_path,
-                args.model,
-                args.model_type,
-                args.expected_repo_name,
-                args.trigger_word,
-                n_trials=args.n_trials,
-                train_data_dir=train_data_dir
-            )
-            print(f"Optimization complete. Best params: {best_params}", flush=True)
-        elif args.model_type in ["qwen-image", "z-image"]:
-            print(f"Starting Optuna hyperparameter optimization ({args.n_trials} trials) for {args.model_type}...", flush=True)
-            best_params = optuna_handler_generic.optimize_hyperparameters(
-                args.task_id,
-                model_path,
-                args.model,
-                args.model_type,
-                args.expected_repo_name,
-                args.trigger_word,
-                n_trials=args.n_trials,
-                train_data_dir=train_data_dir
-            )
-            print(f"Optimization complete. Best params: {best_params}", flush=True)
-        else:
-            print(f"Optimization not supported for {args.model_type}. Skipping...", flush=True)
+    if args.model_type == "sdxl":
+        print(f"Starting Optuna hyperparameter optimization ({args.n_trials} trials)...", flush=True)
+        best_params = optuna_handler_sdxl.optimize_hyperparameters(
+            args.task_id,
+            model_path,
+            args.model,
+            args.model_type,
+            args.expected_repo_name,
+            args.trigger_word,
+            n_trials=args.n_trials,
+            train_data_dir=train_data_dir
+        )
+        print(f"Optimization complete. Best params: {best_params}", flush=True)
+    elif args.model_type in ["qwen-image", "z-image"]:
+        print(f"Starting Optuna hyperparameter optimization ({args.n_trials} trials) for {args.model_type}...", flush=True)
+        best_params = optuna_handler_generic.optimize_hyperparameters(
+            args.task_id,
+            model_path,
+            args.model,
+            args.model_type,
+            args.expected_repo_name,
+            args.trigger_word,
+            n_trials=args.n_trials,
+            train_data_dir=train_data_dir
+        )
+        print(f"Optimization complete. Best params: {best_params}", flush=True)
+    else:
+        print(f"Optimization not supported for {args.model_type}. Skipping...", flush=True)
 
     config_path = create_config(
         args.task_id,
