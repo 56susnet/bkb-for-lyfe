@@ -24,7 +24,7 @@ config:
       batch_size: 4
       steps: 400
       lr: 3e-5
-      optimizer: adamw
+      optimizer: adamw8bit
       gradient_checkpointing: true
       gradient_accumulation: 1
       noise_scheduler: flowmatch
