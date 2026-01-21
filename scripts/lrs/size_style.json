@@ -8,8 +8,8 @@
                 "train_batch_size": 6,
                 "max_train_epochs": 75,
                 "save_every_n_epochs": 15,
-                "unet_lr": 1,
-                "text_encoder_lr": 1
+                "unet_lr": 1e-5,
+                "text_encoder_lr": 1e-5
             }
         },
         {
@@ -19,8 +19,8 @@
                 "train_batch_size": 6,
                 "max_train_epochs": 50,
                 "save_every_n_epochs": 10,
-                "unet_lr": 1,
-                "text_encoder_lr": 1
+                "unet_lr": 1e-5,
+                "text_encoder_lr": 1e-5
             }
         },
         {
@@ -30,8 +30,8 @@
                 "train_batch_size": 6,
                 "max_train_epochs": 35,
                 "save_every_n_epochs": 7,
-                "unet_lr": 1,
-                "text_encoder_lr": 1
+                "unet_lr": 1e-5,
+                "text_encoder_lr": 1e-5
             }
         },
         {
@@ -41,8 +41,8 @@
                 "train_batch_size": 12,
                 "max_train_epochs": 25,
                 "save_every_n_epochs": 5,
-                "unet_lr": 1,
-                "text_encoder_lr": 1
+                "unet_lr": 2e-5,
+                "text_encoder_lr": 2e-5
             }
         },
         {
@@ -51,9 +51,9 @@
             "config": {
                 "train_batch_size": 24,
                 "max_train_epochs": 20,
-                "save_every_n_epochs": 4,
-                "unet_lr": 1,
-                "text_encoder_lr": 1
+                "save_every_n_epochs": 5,
+                "unet_lr": 2e-5,
+                "text_encoder_lr": 2e-5
             }
         }
     ]

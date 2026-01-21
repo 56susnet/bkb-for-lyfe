@@ -14,12 +14,7 @@ import re
 import time
 import yaml
 import toml
-import shutil
-import random
-import glob
 
-
-# Add project root to python path to import modules
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(project_root)
@@ -32,7 +27,6 @@ from core.dataset.prepare_diffusion_dataset import prepare_dataset
 from core.models.utility_models import ImageModelType
 
 
-
 def get_model_path(path: str) -> str:
     if os.path.isdir(path):
         files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
@@ -40,7 +34,6 @@ def get_model_path(path: str) -> str:
             return os.path.join(path, files[0])
     return path
 def merge_model_config(default_config: dict, model_config: dict) -> dict:
-    """Merge default config with model-specific overrides."""
     merged = {}
 
     if isinstance(default_config, dict):
@@ -50,8 +43,64 @@ def merge_model_config(default_config: dict, model_config: dict) -> dict:
         merged.update(model_config)
 
     return merged if merged else None
+
+def count_images_in_directory(directory_path: str) -> int:
+    image_extensions = {'.jpg', '.jpeg', '.png'}
+    count = 0
+    
+    try:
+        if not os.path.exists(directory_path):
+            print(f"Directory not found: {directory_path}", flush=True)
+            return 0
+        
+        for root, dirs, files in os.walk(directory_path):
+            for file in files:
+                if file.startswith('.'):
+                    continue
+                
+                _, ext = os.path.splitext(file.lower())
+                if ext in image_extensions:
+                    count += 1
+    except Exception as e:
+        print(f"Error counting images in directory: {e}", flush=True)
+        return 0
+    
+    return count
+
+def load_size_based_config(model_type: str, is_style: bool, dataset_size: int) -> dict:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_dir = os.path.join(script_dir, "lrs")
+    
+    if model_type == "flux":
+        return None
+    elif is_style:
+        config_file = os.path.join(config_dir, "size_style.json")
+    else:
+        config_file = os.path.join(config_dir, "size_person.json")
+    
+    try:
+        with open(config_file, 'r') as f:
+            size_config = json.load(f)
+        
+        size_ranges = size_config.get("size_ranges", [])
+        for size_range in size_ranges:
+            min_size = size_range.get("min", 0)
+            max_size = size_range.get("max", float('inf'))
+            
+            if min_size <= dataset_size <= max_size:
+                print(f"Using size-based config for {dataset_size} images (range: {min_size}-{max_size})", flush=True)
+                return size_range.get("config", {})
+        
+        default_config = size_config.get("default", {})
+        if default_config:
+            print(f"Using default size-based config for {dataset_size} images", flush=True)
+        return default_config
+        
+    except Exception as e:
+        print(f"Warning: Could not load size-based config from {config_file}: {e}", flush=True)
+        return None
+
 def get_config_for_model(lrs_config: dict, model_name: str) -> dict:
-    """Get configuration overrides based on model name."""
     if not isinstance(lrs_config, dict):
         return None
 
@@ -67,7 +116,6 @@ def get_config_for_model(lrs_config: dict, model_name: str) -> dict:
     return None
 
 def load_lrs_config(model_type: str, is_style: bool) -> dict:
-    """Load the appropriate LRS configuration based on model type and training type"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     config_dir = os.path.join(script_dir, "lrs")
 
@@ -166,6 +214,7 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
             config = toml.load(file)
 
         lrs_config = load_lrs_config(model_type, is_style)
+
         if lrs_config:
             model_hash = hash_model(model_name)
             lrs_settings = get_config_for_model(lrs_config, model_hash)
@@ -176,16 +225,18 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
                     "prior_loss_weight",
                     "max_train_epochs",
                     "train_batch_size",
+                    "max_train_steps",
+                    "network_alpha",
                     "optimizer_args",
                     "unet_lr",
                     "text_encoder_lr",
-                    "noise_offset",
+                    "lr_warmup_steps",
+                    "network_dropout",
                     "min_snr_gamma",
                     "seed",
-                    "lr_warmup_steps",
-                    "loss_type",
-                    "huber_c",
-                    "huber_schedule",
+                    "noise_offset",
+                    "lr_scheduler",
+                    "save_every_n_epochs",
                 ]:
                     if optional_key in lrs_settings:
                         config[optional_key] = lrs_settings[optional_key]
@@ -194,7 +245,6 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
         else:
             print("Warning: Could not load LRS configuration, using default values", flush=True)
 
-        # Update config
         network_config_person = {
             "stabilityai/stable-diffusion-xl-base-1.0": 235,
             "Lykon/dreamshaper-xl-1-0": 235,
@@ -308,6 +358,20 @@ def create_config(task_id, model_path, model_name, model_type, expected_repo_nam
             config["network_alpha"] = network_config["network_alpha"]
             config["network_args"] = network_config["network_args"]
 
+
+        dataset_size = 0
+        if os.path.exists(train_data_dir):
+            dataset_size = count_images_in_directory(train_data_dir)
+            if dataset_size > 0:
+                print(f"Counted {dataset_size} images in training directory", flush=True)
+
+        if dataset_size > 0:
+            size_config = load_size_based_config(model_type, is_style, dataset_size)
+            if size_config:
+                print(f"Applying size-based config for {dataset_size} images", flush=True)
+                for key, value in size_config.items():
+                    config[key] = value
+        
         config_path = os.path.join(train_cst.IMAGE_CONTAINER_CONFIG_SAVE_PATH, f"{task_id}.toml")
         save_config_toml(config, config_path)
         print(f"config is {config}", flush=True)
@@ -332,13 +396,13 @@ def run_training(model_type, config_path):
                 "accelerate", "launch",
                 "--dynamo_backend", "no",
                 "--dynamo_mode", "default",
-            "--mixed_precision", "bf16",
-            "--num_processes", "1",
-            "--num_machines", "1",
-            "--num_cpu_threads_per_process", "2",
-            f"/app/sd-script/{model_type}_train_network.py",
-            "--config_file", config_path
-        ]
+                "--mixed_precision", "bf16",
+                "--num_processes", "1",
+                "--num_machines", "1",
+                "--num_cpu_threads_per_process", "2",
+                f"/app/sd-script/{model_type}_train_network.py",
+                "--config_file", config_path
+            ]
         elif model_type == "flux":
             training_command = [
                 "accelerate", "launch",
