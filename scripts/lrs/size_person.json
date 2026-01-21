@@ -39,7 +39,7 @@
             "max": 80,
             "config": {
                 "train_batch_size": 4,
-                "max_train_epochs": 30,
+                "max_train_epochs": 20,
                 "save_every_n_epochs": 10,
                 "unet_lr": 1,
                 "text_encoder_lr": 1
@@ -50,7 +50,7 @@
             "max": 1000,
             "config": {
                 "train_batch_size": 4,
-                "max_train_epochs": 30,
+                "max_train_epochs": 20,
                 "save_every_n_epochs": 10,
                 "unet_lr": 1,
                 "text_encoder_lr": 1
