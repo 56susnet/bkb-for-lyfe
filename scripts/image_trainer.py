@@ -155,7 +155,7 @@ def split_dataset(train_dir, eval_dir):
     if total_files > 20:
         sample_size = 2
     else:
-        sample_size = 1
+        sample_size = 2
     
     random.seed(42) 
     eval_files = random.sample(all_files, sample_size)
