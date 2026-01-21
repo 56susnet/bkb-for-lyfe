@@ -47,8 +47,8 @@ gradient_accumulation_steps = 1
 
 optimizer_type = "adamw"
 optimizer_args = [ "betas=(0.9, 0.999)", "weight_decay=1e-04", "eps=1e-08",]
-unet_lr = 2e-5
-text_encoder_lr = 2e-6
+unet_lr = 0.0008240000000000001
+text_encoder_lr = 8.240000000000001e-05
 
 lr_scheduler = "cosine"
 lr_warmup_steps = 25
