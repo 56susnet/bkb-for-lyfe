@@ -24,7 +24,7 @@ config:
       is_reg: false
     train:
       batch_size: 4
-      steps: 300
+      steps: 2000
       lr: 3e-5
       optimizer: adamw8bit
       gradient_checkpointing: true
