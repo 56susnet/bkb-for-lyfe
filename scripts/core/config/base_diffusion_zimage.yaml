@@ -13,7 +13,7 @@ config:
       conv_alpha: 16
     save:
       dtype: bf16
-      save_every: 100
+      save_every: 250
       max_step_saves_to_keep: 4
       save_format: diffusers
     datasets:
@@ -23,16 +23,14 @@ config:
       resolution: [512, 768, 1024]
       is_reg: false
     train:
-      batch_size: 4
+      batch_size: 1
       steps: 2000
-      lr: 3e-5
+      lr: 0.0001
       optimizer: adamw8bit
       gradient_checkpointing: true
       noise_scheduler: flowmatch
       timestep_type: weighted
       dtype: bf16
-      optimizer_params:
-        weight_decay: 1e-5
       ema_config:
         use_ema: true
         ema_decay: 0.99
